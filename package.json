@@ -1,5 +1,5 @@
 {
-  "name": "rowood-whatsapp-bot",
+  "name": "rowood-whatsapp-bot-v2",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
