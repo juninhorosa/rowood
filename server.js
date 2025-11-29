@@ -1,11 +1,11 @@
-import { 
-  default as makeWASocket, 
-  useMultiFileAuthState, 
-  fetchLatestBaileysVersion 
-} from "@whiskeysockets/baileys";
-
+import * as baileys from "@whiskeysockets/baileys";
 import mysql from "mysql2/promise";
 import express from "express";
+
+/* pegar funções */
+const makeWASocket = baileys.default;
+const useMultiFileAuthState = baileys.useMultiFileAuthState;
+const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
 
 /* ===============================================
    1. BANCO DE DADOS
@@ -18,7 +18,7 @@ const db = await mysql.createPool({
 });
 
 /* ===============================================
-   2. INICIAR BOT WHATSAPP
+   2. BOT WHATSAPP
 ================================================ */
 async function startBot() {
 
@@ -35,7 +35,6 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  /* Receber mensagens */
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message) return;
@@ -43,7 +42,7 @@ async function startBot() {
     const texto = msg.message.conversation || "";
     const from = msg.key.remoteJid;
 
-    console.log("📩 Msg:", texto);
+    console.log("📩 Mensagem:", texto);
 
     if (texto.toLowerCase() === "oi") {
       await sock.sendMessage(from, { text: "Olá! 👋 Bot Rowood ativo." });
@@ -56,21 +55,18 @@ async function startBot() {
 const sock = await startBot();
 
 /* ===============================================
-   3. API HTTP
+   3. API para o PHP enviar notificações
 ================================================ */
 const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("BOT Rowood WhatsApp rodando ✔");
+  res.send("Bot Rowood online ✔");
 });
 
 app.post("/send-message", async (req, res) => {
   try {
     const { numero, mensagem } = req.body;
-
-    if (!numero || !mensagem)
-      return res.json({ erro: "Faltando parâmetros" });
 
     await sock.sendMessage(numero + "@s.whatsapp.net", {
       text: mensagem
@@ -83,9 +79,6 @@ app.post("/send-message", async (req, res) => {
   }
 });
 
-/* ===============================================
-   4. INICIAR SERVIDOR
-================================================ */
 app.listen(3000, () => {
   console.log("🌐 API online na porta 3000");
 });
