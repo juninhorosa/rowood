@@ -1,9 +1,14 @@
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import { 
+  default as makeWASocket, 
+  useMultiFileAuthState, 
+  fetchLatestBaileysVersion 
+} from "@whiskeysockets/baileys";
+
 import mysql from "mysql2/promise";
 import express from "express";
 
 /* ===============================================
-   1. Conexão com Banco de Dados (VARIÁVEIS DE AMBIENTE)
+   1. BANCO DE DADOS
 ================================================ */
 const db = await mysql.createPool({
   host: process.env.DB_HOST,
@@ -13,13 +18,14 @@ const db = await mysql.createPool({
 });
 
 /* ===============================================
-   2. Inicialização da sessão WhatsApp
+   2. INICIAR BOT WHATSAPP
 ================================================ */
 async function startBot() {
+
   const { state, saveCreds } = await useMultiFileAuthState('./auth');
 
   const { version } = await fetchLatestBaileysVersion();
-  console.log("📌 Versão WhatsApp API:", version);
+  console.log("📌 Versão WA:", version);
 
   const sock = makeWASocket({
     version,
@@ -29,22 +35,18 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  console.log("🤖 BOT WhatsApp iniciado!");
-
-  /* ============================================
-     3. Receber mensagens
-  =============================================*/
+  /* Receber mensagens */
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message) return;
 
     const texto = msg.message.conversation || "";
-    const numero = msg.key.remoteJid.replace("@s.whatsapp.net", "");
+    const from = msg.key.remoteJid;
 
-    console.log("📩 Mensagem de", numero, ":", texto);
+    console.log("📩 Msg:", texto);
 
     if (texto.toLowerCase() === "oi") {
-      await sock.sendMessage(msg.key.remoteJid, { text: "Olá, sou o BOT Rowood 👷‍♂️" });
+      await sock.sendMessage(from, { text: "Olá! 👋 Bot Rowood ativo." });
     }
   });
 
@@ -54,39 +56,36 @@ async function startBot() {
 const sock = await startBot();
 
 /* ===============================================
-   4. Servidor HTTP Express (Render usa isso)
+   3. API HTTP
 ================================================ */
 const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("Rowood BOT Online ✔");
+  res.send("BOT Rowood WhatsApp rodando ✔");
 });
 
-/* ===============================================
-   5. Endpoint para enviar mensagem pelo painel PHP
-================================================ */
 app.post("/send-message", async (req, res) => {
   try {
     const { numero, mensagem } = req.body;
 
-    if (!numero || !mensagem) {
-      return res.status(400).json({ erro: "Parâmetros faltando" });
-    }
+    if (!numero || !mensagem)
+      return res.json({ erro: "Faltando parâmetros" });
 
     await sock.sendMessage(numero + "@s.whatsapp.net", {
       text: mensagem
     });
 
     res.json({ enviado: true });
-  } catch (err) {
-    res.json({ erro: err.message });
+
+  } catch (e) {
+    res.json({ erro: e.message });
   }
 });
 
 /* ===============================================
-   6. Iniciar servidor Express
+   4. INICIAR SERVIDOR
 ================================================ */
 app.listen(3000, () => {
-  console.log("🌐 Servidor HTTP ativo na porta 3000");
+  console.log("🌐 API online na porta 3000");
 });
