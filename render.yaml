@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rowood-whatsapp-bot
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "node server.js"
+    disk:
+      name: session
+      mountPath: /app/auth
+      sizeGB: 1
