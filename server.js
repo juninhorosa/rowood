@@ -1,11 +1,11 @@
-import * as baileys from "@whiskeysockets/baileys";
+import makeWASocket, {
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason
+} from "@whiskeysockets/baileys";
+
 import mysql from "mysql2/promise";
 import express from "express";
-
-/* pegar funções */
-const makeWASocket = baileys.default;
-const useMultiFileAuthState = baileys.useMultiFileAuthState;
-const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
 
 /* ===============================================
    1. BANCO DE DADOS
@@ -30,16 +30,44 @@ async function startBot() {
   const sock = makeWASocket({
     version,
     printQRInTerminal: true,
-    auth: state
+    auth: state,
+    syncFullHistory: false
   });
 
+  // salvar credenciais
   sock.ev.on("creds.update", saveCreds);
 
+  // reconexão automática
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
+
+    if (connection === "close") {
+      const motivo = lastDisconnect?.error?.output?.statusCode;
+
+      // 403 == sessão expirada, precisa escanear QR novamente
+      if (motivo !== DisconnectReason.loggedOut) {
+        console.log("♻️ Reconectando...");
+        startBot();
+      } else {
+        console.log("🔴 Sessão deslogada. Escaneie o QR novamente.");
+      }
+    }
+
+    if (connection === "open") {
+      console.log("🟢 Bot conectado ao WhatsApp!");
+    }
+  });
+
+  // mensagens recebidas
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message) return;
 
-    const texto = msg.message.conversation || "";
+    const texto =
+      msg.message.conversation ||
+      msg.message.extendedTextMessage?.text ||
+      "";
+
     const from = msg.key.remoteJid;
 
     console.log("📩 Mensagem:", texto);
@@ -55,7 +83,7 @@ async function startBot() {
 const sock = await startBot();
 
 /* ===============================================
-   3. API para o PHP enviar notificações
+   3. API HTTP para PHP enviar notificações
 ================================================ */
 const app = express();
 app.use(express.json());
@@ -64,6 +92,7 @@ app.get("/", (req, res) => {
   res.send("Bot Rowood online ✔");
 });
 
+// endpoint que o PHP usa
 app.post("/send-message", async (req, res) => {
   try {
     const { numero, mensagem } = req.body;
@@ -75,6 +104,7 @@ app.post("/send-message", async (req, res) => {
     res.json({ enviado: true });
 
   } catch (e) {
+    console.error("Erro ao enviar mensagem:", e);
     res.json({ erro: e.message });
   }
 });
